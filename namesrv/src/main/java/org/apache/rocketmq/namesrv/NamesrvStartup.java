@@ -78,12 +78,12 @@ public class NamesrvStartup {
             System.exit(-1);
             return null;
         }
-
+        // 1. -c configFile 配置文件位置
         final NamesrvConfig namesrvConfig = new NamesrvConfig();
-        final NettyServerConfig nettyServerConfig = new NettyServerConfig();
+        final NettyServerConfig nettyServerConfig = new NettyServerConfig(); //网络参数
         nettyServerConfig.setListenPort(9876);
         // -c指定配置文件路径
-        if (commandLine.hasOption('c')) {
+        if (commandLine.hasOption('c')) { //命令指定配置文件的路径
             String file = commandLine.getOptionValue('c');
             if (file != null) {
                 InputStream in = new BufferedInputStream(new FileInputStream(file));
@@ -145,7 +145,7 @@ public class NamesrvStartup {
             controller.shutdown();
             System.exit(-3);
         }
-
+        // 注册JVM钩子函数并启动服务，
         Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, new Callable<Void>() {
             @Override
             public Void call() throws Exception {

@@ -77,16 +77,16 @@ public class NamesrvController {
     }
 
     public boolean initialize() {
-
+        // 加载KV配置
         this.kvConfigManager.load();
-
+        // 创建NettyServer网络处理对象
         this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService);
 
         this.remotingExecutor =
             Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
 
         this.registerProcessor();
-
+        // 开启两个定时任务（心跳检测）
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
