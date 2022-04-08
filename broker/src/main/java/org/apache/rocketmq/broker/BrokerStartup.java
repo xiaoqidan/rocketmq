@@ -55,7 +55,7 @@ public class BrokerStartup {
     public static InternalLogger log;
 
     public static void main(String[] args) {
-        //1.创建接口再启动
+        //创建brokerController
         start(createBrokerController(args));
     }
 
@@ -91,7 +91,7 @@ public class BrokerStartup {
     public static BrokerController createBrokerController(String[] args) {
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
 
-        // 设置发送,接受缓冲区大小
+        // 设置发送,接受缓冲区大小,默认128kb
         if (null == System.getProperty(NettySystemConfig.COM_ROCKETMQ_REMOTING_SOCKET_SNDBUF_SIZE)) {
             NettySystemConfig.socketSndbufSize = 131072;
         }
@@ -102,6 +102,7 @@ public class BrokerStartup {
 
         try {
             //PackageConflictDetect.detectFastjson();
+            // 命令行选项解析
             Options options = ServerUtil.buildCommandlineOptions(new Options());
             commandLine = ServerUtil.parseCmdLine("mqbroker", args, buildCommandlineOptions(options),
                 new PosixParser());
@@ -112,15 +113,19 @@ public class BrokerStartup {
             final BrokerConfig brokerConfig = new BrokerConfig();
             final NettyServerConfig nettyServerConfig = new NettyServerConfig();
             final NettyClientConfig nettyClientConfig = new NettyClientConfig();
-
+            // 是否使用TLS （TLS是SSL的升级版本）
             nettyClientConfig.setUseTLS(Boolean.parseBoolean(System.getProperty(TLS_ENABLE,
                 String.valueOf(TlsSystemConfig.tlsMode == TlsMode.ENFORCING))));
+            // 设置netty的服务端监听的端口，对外提供消息读写服务的端口
             nettyServerConfig.setListenPort(10911);
+            // 创建消息存储配置
             final MessageStoreConfig messageStoreConfig = new MessageStoreConfig();
 
-            //判断broker的角色
+            //如果Broker是slave节点
             if (BrokerRole.SLAVE == messageStoreConfig.getBrokerRole()) {
+                // 比默认的40% 还要小10%
                 int ratio = messageStoreConfig.getAccessMessageInMemoryMaxRatio() - 10;
+                // 设置消息存储配置所能使用的最大内存比例，超过改内存，消息将被置换出内容
                 messageStoreConfig.setAccessMessageInMemoryMaxRatio(ratio);
             }
 
@@ -149,7 +154,7 @@ public class BrokerStartup {
                 System.out.printf("Please set the %s variable in your environment to match the location of the RocketMQ installation", MixAll.ROCKETMQ_HOME_ENV);
                 System.exit(-2);
             }
-
+            // 检查broker配置中的nameServer地址
             String namesrvAddr = brokerConfig.getNamesrvAddr();
             if (null != namesrvAddr) {
                 try {
@@ -164,10 +169,11 @@ public class BrokerStartup {
                     System.exit(-3);
                 }
             }
-
+            // 检查broker的角色
             switch (messageStoreConfig.getBrokerRole()) {
                 case ASYNC_MASTER:
                 case SYNC_MASTER:
+                    // 如果是master节点，则设置该节点brokerId=0
                     brokerConfig.setBrokerId(MixAll.MASTER_ID);
                     break;
                 case SLAVE:
@@ -184,14 +190,14 @@ public class BrokerStartup {
             if (messageStoreConfig.isEnableDLegerCommitLog()) {
                 brokerConfig.setBrokerId(-1);
             }
-
+            //设置消息存储配置的高可用端口 10912
             messageStoreConfig.setHaListenPort(nettyServerConfig.getListenPort() + 1);
             LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
             JoranConfigurator configurator = new JoranConfigurator();
             configurator.setContext(lc);
             lc.reset();
             configurator.doConfigure(brokerConfig.getRocketmqHome() + "/conf/logback_broker.xml");
-
+            // 解析命令行参数
             if (commandLine.hasOption('p')) {
                 InternalLogger console = InternalLoggerFactory.getLogger(LoggerName.BROKER_CONSOLE_NAME);
                 MixAll.printObjectProperties(console, brokerConfig);
@@ -220,14 +226,15 @@ public class BrokerStartup {
                 nettyClientConfig,
                 messageStoreConfig);
             // remember all configs to prevent discard
+            // 记住所有的配置以防止丢弃
             controller.getConfiguration().registerConfig(properties);
-            // 初始化
+            // 初始化brokerController
             boolean initResult = controller.initialize();
             if (!initResult) {
                 controller.shutdown();
                 System.exit(-3);
             }
-
+            // 注册关闭的钩子方法
             Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
                 private volatile boolean hasShutdown = false;
                 private AtomicInteger shutdownTimes = new AtomicInteger(0);

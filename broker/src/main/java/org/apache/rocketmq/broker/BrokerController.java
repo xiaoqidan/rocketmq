@@ -178,12 +178,20 @@ public class BrokerController {
         final NettyClientConfig nettyClientConfig,
         final MessageStoreConfig messageStoreConfig
     ) {
+        //封装broker的基本配置信息
         this.brokerConfig = brokerConfig;
+        //封装了broker作为对外提供消息读写操作的MQ服务器信息
         this.nettyServerConfig = nettyServerConfig;
+        //封装了broker作为nameserver的客户端信息
         this.nettyClientConfig = nettyClientConfig;
+        //封装消息存储store的配置信息
         this.messageStoreConfig = messageStoreConfig;
+
+        //consumer消息进度记录管理类，会读取store/config/consumerOffset.json配置文件
         this.consumerOffsetManager = new ConsumerOffsetManager(this);
+        //消息Topic维度的管理查询类，管理Topic和Topic相关的配置关系，会读取store/config/topics.json
         this.topicConfigManager = new TopicConfigManager(this);
+        //
         this.pullMessageProcessor = new PullMessageProcessor(this);
         this.pullRequestHoldService = new PullRequestHoldService(this);
         this.messageArrivingListener = new NotifyMessageArrivingListener(this.pullRequestHoldService);
@@ -239,14 +247,19 @@ public class BrokerController {
      * 1.初始化
      */
     public boolean initialize() throws CloneNotSupportedException {
+        // 加载topic 相关配置，文件地址：{user.home}/store/config/topics.json
         boolean result = this.topicConfigManager.load();
-
+        // 加载不同consumer消费的进度情况 consumerOffset.json
         result = result && this.consumerOffsetManager.load();
+        // 加载订阅关系   subscriptionGroup.json
         result = result && this.subscriptionGroupManager.load();
+        // 加载 consumer的过滤信息配置 consumerFilter.json
         result = result && this.consumerFilterManager.load();
 
+        // 如果加载成功
         if (result) {
             try {
+                // 创建消息存储类的messageStore
                 this.messageStore =
                     new DefaultMessageStore(this.messageStoreConfig, this.brokerStatsManager, this.messageArrivingListener,
                         this.brokerConfig);
@@ -254,6 +267,7 @@ public class BrokerController {
                     DLedgerRoleChangeHandler roleChangeHandler = new DLedgerRoleChangeHandler(this, (DefaultMessageStore) messageStore);
                     ((DLedgerCommitLog)((DefaultMessageStore) messageStore).getCommitLog()).getdLedgerServer().getdLedgerLeaderElector().addRoleChangeHandler(roleChangeHandler);
                 }
+                // broker消息统计类
                 this.brokerStats = new BrokerStats((DefaultMessageStore) this.messageStore);
                 //load plugin
                 MessageStorePluginContext context = new MessageStorePluginContext(messageStoreConfig, brokerStatsManager, messageArrivingListener, brokerConfig);
@@ -264,13 +278,16 @@ public class BrokerController {
                 log.error("Failed to initialize", e);
             }
         }
-
+        //加载消息的日志文件，包含CommitLog,ConsumeQueue等
         result = result && this.messageStore.load();
-
+        //如果加载成功
         if (result) {
+            // 开启服务端
             this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.clientHousekeepingService);
             NettyServerConfig fastConfig = (NettyServerConfig) this.nettyServerConfig.clone();
+            // 设置10909的服务端口
             fastConfig.setListenPort(nettyServerConfig.getListenPort() - 2);
+            // 开启10909的服务端口，这个端口只给生产者使用
             this.fastRemotingServer = new NettyRemotingServer(fastConfig, this.clientHousekeepingService);
             this.sendMessageExecutor = new BrokerFixedThreadPoolExecutor(
                 this.brokerConfig.getSendMessageThreadPoolNums(),
