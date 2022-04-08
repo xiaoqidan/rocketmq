@@ -52,15 +52,17 @@ public class RouteInfoManager {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
     private final static long BROKER_CHANNEL_EXPIRED_TIME = 1000 * 60 * 2;
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
-    /** topic消息队列路由信息，消息发送时根据路由表进行负载均衡 */
+    // topic消息队列路由信息，消息发送时根据路由表进行负载均衡
     private final HashMap<String, List<QueueData>> topicQueueTable;
-    /** brokerName Broker基础信，*/
+    // brokerName Broker， 同一个BrokerName可能对应多台机器，一个Master和多个Slave
     private final HashMap<String, BrokerData> brokerAddrTable;
-    /** clusterName Broker集群信息，存储集群中的所有Broker名称*/
+    // clusterName Broker集群信息，存储集群中的所有Broker名称
     private final HashMap<String, Set<String/* brokerName */>> clusterAddrTable;
-    /** brokerAddr Broker状态信息,NameServer每次收到心跳包时会替换该信息*/
+    // brokerAddr Broker状态信息,NameServer每次收到心跳包时会替换该信息
+    // 存储这台Broker机器的实时状态，包括上次更新状态的时间戳
     private final HashMap<String, BrokerLiveInfo> brokerLiveTable;
-    /** brokerAddr ---> Filter Server  用于类模式消息过滤 */
+    // brokerAddr(broker地址) ---> Filter Server  用于类模式消息过滤
+    // 过滤服务器，是RocketMQ的一种服务端过滤方式
     private final HashMap<String, List<String>> filterServerTable;
 
     public RouteInfoManager() {

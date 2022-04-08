@@ -49,13 +49,13 @@ public class NamesrvController {
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl(
         "NSScheduledThread"));
 
-    // key value 配置存储
+    // kv配置管理类
     private final KVConfigManager kvConfigManager;
     // 路由信息存储
     private final RouteInfoManager routeInfoManager;
 
     private RemotingServer remotingServer;
-
+    // 心跳连接处理类
     private BrokerHousekeepingService brokerHousekeepingService;
 
     private ExecutorService remotingExecutor;
@@ -77,16 +77,16 @@ public class NamesrvController {
     }
 
     public boolean initialize() {
-        // 加载KV配置
+        // 加载KV配置文件到内存(xx/kvconfig.json)
         this.kvConfigManager.load();
         // 创建NettyServer网络处理对象
         this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService);
 
         this.remotingExecutor =
             Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
-
+        // 注册默认的消息处理器
         this.registerProcessor();
-        // 开启两个定时任务（心跳检测）
+        // 定时扫描不活跃的broker
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -94,7 +94,7 @@ public class NamesrvController {
                 NamesrvController.this.routeInfoManager.scanNotActiveBroker();
             }
         }, 5, 10, TimeUnit.SECONDS);
-
+        // 定时打印configTable信息
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override

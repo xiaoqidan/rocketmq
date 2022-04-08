@@ -71,16 +71,18 @@ public class NamesrvStartup {
     public static NamesrvController createNamesrvController(String[] args) throws IOException, JoranException {
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
         //PackageConflictDetect.detectFastjson();
-
+        // 命令行选项解析
         Options options = ServerUtil.buildCommandlineOptions(new Options());
+        // 解析命令行 'mqnamesrv' 的参数
         commandLine = ServerUtil.parseCmdLine("mqnamesrv", args, buildCommandlineOptions(options), new PosixParser());
         if (null == commandLine) {
             System.exit(-1);
             return null;
         }
-        // 1. -c configFile 配置文件位置
+        // 创建namesrc,netty的相关配置对象
         final NamesrvConfig namesrvConfig = new NamesrvConfig();
         final NettyServerConfig nettyServerConfig = new NettyServerConfig(); //网络参数
+        // 设置netty的服务端监听的端口
         nettyServerConfig.setListenPort(9876);
         // -c指定配置文件路径
         if (commandLine.hasOption('c')) { //命令指定配置文件的路径
@@ -98,7 +100,7 @@ public class NamesrvStartup {
                 in.close();
             }
         }
-
+        // 解析命令行参数'-p'：启动时候日志打印配置信息
         if (commandLine.hasOption('p')) {
             InternalLogger console = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_CONSOLE_NAME);
             MixAll.printObjectProperties(console, namesrvConfig);
@@ -108,11 +110,12 @@ public class NamesrvStartup {
 
         MixAll.properties2Object(ServerUtil.commandLine2Properties(commandLine), namesrvConfig);
 
+        // 必须要传入目录地址
         if (null == namesrvConfig.getRocketmqHome()) {
             System.out.printf("Please set the %s variable in your environment to match the location of the RocketMQ installation%n", MixAll.ROCKETMQ_HOME_ENV);
             System.exit(-2);
         }
-
+        // 初始化Logback配置
         LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
         JoranConfigurator configurator = new JoranConfigurator();
         configurator.setContext(lc);
@@ -128,6 +131,7 @@ public class NamesrvStartup {
         final NamesrvController controller = new NamesrvController(namesrvConfig, nettyServerConfig);
 
         // remember all configs to prevent discard
+        // 记住所有的配置以防丢失
         controller.getConfiguration().registerConfig(properties);
 
         return controller;
