@@ -503,8 +503,11 @@ public class BrokerController {
                     log.warn("FileWatchService created error, can't load the certificate dynamically");
                 }
             }
+            //初始化事务消息相关的服务
             initialTransaction();
+            //初始化权限管理器
             initialAcl();
+            //初始化RPC调用的钩子
             initialRpcHooks();
         }
         return result;
