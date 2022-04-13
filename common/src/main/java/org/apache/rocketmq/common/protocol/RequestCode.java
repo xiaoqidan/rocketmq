@@ -19,8 +19,10 @@ package org.apache.rocketmq.common.protocol;
 
 public class RequestCode {
 
+    /** 生产者发送消息 */
     public static final int SEND_MESSAGE = 10;
 
+    /** 消费者拉取消息 */
     public static final int PULL_MESSAGE = 11;
 
     public static final int QUERY_MESSAGE = 12;
@@ -146,6 +148,7 @@ public class RequestCode {
     public static final int QUERY_CORRECTION_OFFSET = 308;
     public static final int CONSUME_MESSAGE_DIRECTLY = 309;
 
+    /** 生产者发送消息 */
     public static final int SEND_MESSAGE_V2 = 310;
 
     public static final int GET_UNIT_TOPIC_LIST = 311;

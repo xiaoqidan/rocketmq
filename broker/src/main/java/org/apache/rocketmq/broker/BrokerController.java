@@ -191,22 +191,35 @@ public class BrokerController {
         this.consumerOffsetManager = new ConsumerOffsetManager(this);
         //消息Topic维度的管理查询类，管理Topic和Topic相关的配置关系，会读取store/config/topics.json
         this.topicConfigManager = new TopicConfigManager(this);
-        //
+        //pull方式消息处理类
         this.pullMessageProcessor = new PullMessageProcessor(this);
+        //push方式的长轮询机制拉取请求时，保持使用，当有消息到达时，进行推送处理的类
         this.pullRequestHoldService = new PullRequestHoldService(this);
+        //有消息到达broker的监听器，回调pullRequestHoldService中的notifyMessageArriving()方法
         this.messageArrivingListener = new NotifyMessageArrivingListener(this.pullRequestHoldService);
+        //消息者id变化监听器
         this.consumerIdsChangeListener = new DefaultConsumerIdsChangeListener(this);
+        //消费者管理类，并对消费者id变化进行监听
         this.consumerManager = new ConsumerManager(this.consumerIdsChangeListener);
+        //消费者过滤类，按照topic进行分类，会读取store/config/consumerFilter.json
         this.consumerFilterManager = new ConsumerFilterManager(this);
+        // 生产者管理 按照group进行分类
         this.producerManager = new ProducerManager();
+        // 客户端心跳连接处理类
         this.clientHousekeepingService = new ClientHousekeepingService(this);
+        // console控制台获取broker信息使用
         this.broker2Client = new Broker2Client(this);
+        // 订阅关系管理类
         this.subscriptionGroupManager = new SubscriptionGroupManager(this);
+        // broker对外访问的API
         this.brokerOuterAPI = new BrokerOuterAPI(nettyClientConfig);
+        //
         this.filterServerManager = new FilterServerManager(this);
-
+        //broker主从同步进度管理类
         this.slaveSynchronize = new SlaveSynchronize(this);
 
+        // 各种线程池的阻塞队列
+        // 发送消息线程队列
         this.sendThreadPoolQueue = new LinkedBlockingQueue<Runnable>(this.brokerConfig.getSendThreadPoolQueueCapacity());
         this.pullThreadPoolQueue = new LinkedBlockingQueue<Runnable>(this.brokerConfig.getPullThreadPoolQueueCapacity());
         this.replyThreadPoolQueue = new LinkedBlockingQueue<Runnable>(this.brokerConfig.getReplyThreadPoolQueueCapacity());
@@ -289,6 +302,7 @@ public class BrokerController {
             fastConfig.setListenPort(nettyServerConfig.getListenPort() - 2);
             // 开启10909的服务端口，这个端口只给生产者使用
             this.fastRemotingServer = new NettyRemotingServer(fastConfig, this.clientHousekeepingService);
+            // 处理消息生产者发送的生产消息请求相关的线程池
             this.sendMessageExecutor = new BrokerFixedThreadPoolExecutor(
                 this.brokerConfig.getSendMessageThreadPoolNums(),
                 this.brokerConfig.getSendMessageThreadPoolNums(),
@@ -296,7 +310,7 @@ public class BrokerController {
                 TimeUnit.MILLISECONDS,
                 this.sendThreadPoolQueue,
                 new ThreadFactoryImpl("SendMessageThread_"));
-
+            // 处理消息消费者发出的消费消息请求相关的线程池
             this.pullMessageExecutor = new BrokerFixedThreadPoolExecutor(
                 this.brokerConfig.getPullMessageThreadPoolNums(),
                 this.brokerConfig.getPullMessageThreadPoolNums(),
@@ -304,7 +318,7 @@ public class BrokerController {
                 TimeUnit.MILLISECONDS,
                 this.pullThreadPoolQueue,
                 new ThreadFactoryImpl("PullMessageThread_"));
-
+            // 处理回复消息API的线程池
             this.replyMessageExecutor = new BrokerFixedThreadPoolExecutor(
                 this.brokerConfig.getProcessReplyMessageThreadPoolNums(),
                 this.brokerConfig.getProcessReplyMessageThreadPoolNums(),
@@ -312,7 +326,7 @@ public class BrokerController {
                 TimeUnit.MILLISECONDS,
                 this.replyThreadPoolQueue,
                 new ThreadFactoryImpl("ProcessReplyMessageThread_"));
-
+            //查询线程
             this.queryMessageExecutor = new BrokerFixedThreadPoolExecutor(
                 this.brokerConfig.getQueryMessageThreadPoolNums(),
                 this.brokerConfig.getQueryMessageThreadPoolNums(),
@@ -353,10 +367,12 @@ public class BrokerController {
                 Executors.newFixedThreadPool(this.brokerConfig.getConsumerManageThreadPoolNums(), new ThreadFactoryImpl(
                     "ConsumerManageThread_"));
 
+            //为客户端注册需要处理API指令事件，以及消息发送和消费的回调方法
             this.registerProcessor();
 
             final long initialDelay = UtilAll.computeNextMorningTimeMillis() - System.currentTimeMillis();
             final long period = 1000 * 60 * 60 * 24;
+            // 每天执行一次，统计昨天put的message和get的message
             this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
@@ -367,7 +383,7 @@ public class BrokerController {
                     }
                 }
             }, initialDelay, period, TimeUnit.MILLISECONDS);
-
+            // 默认5s执行一次，会把消费这的偏移量存到文件中 ${user.home}/store/config/consumerOffset.json
             this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
@@ -378,7 +394,7 @@ public class BrokerController {
                     }
                 }
             }, 1000 * 10, this.brokerConfig.getFlushConsumerOffsetInterval(), TimeUnit.MILLISECONDS);
-
+            // 默认10s执行一次，会把消费者的消息过滤的消息持久化到文件 ${user.home}/store/config/consumerFilter.json
             this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
@@ -389,7 +405,7 @@ public class BrokerController {
                     }
                 }
             }, 1000 * 10, 1000 * 10, TimeUnit.MILLISECONDS);
-
+            //每3分钟，当消费者消费太慢，会禁用到消费者组
             this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
@@ -570,6 +586,11 @@ public class BrokerController {
         }
     }
 
+    /**
+     * RokcetMQ中有许多线程执行器，包括sendMessageExecutor(发送消息),pullMessageExecutor(拉取消息)等
+     * 这些线程执行器会通过registerProcessor注册到NettyRemotingServer中。
+     * 每一个RequestCode会有一个对应的执行器，最终会以RequestCode为键放到一个HashMap中，当请求到达nettyServer时，会根据RequestCode把请求分发到不同的执行器去处理请求
+     */
     public void registerProcessor() {
         /**
          * SendMessageProcessor
