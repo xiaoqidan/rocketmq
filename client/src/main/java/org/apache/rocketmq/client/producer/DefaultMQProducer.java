@@ -45,29 +45,33 @@ import org.apache.rocketmq.remoting.RPCHook;
 import org.apache.rocketmq.remoting.exception.RemotingException;
 
 /**
- * This class is the entry point for applications intending to send messages. </p>
+ * This class is the entry point for applications intending to send messages. 此类是打算发送消息的应用程序的入口点</p>
  *
  * It's fine to tune fields which exposes getter/setter methods, but keep in mind, all of them should work well out of
- * box for most scenarios. </p>
+ * box for most scenarios. 可以调整暴露getter/setter方法的字段，但请记住，对于大多数情况，所有这些字段都应该开箱即用</p>
  *
  * This class aggregates various <code>send</code> methods to deliver messages to brokers. Each of them has pros and
- * cons; you'd better understand strengths and weakness of them before actually coding. </p>
+ * cons; you'd better understand strengths and weakness of them before actually coding.
+ * 这个类聚合了各种<code>send</code>方法来向代理传递消息。它们各有利弊；在实际编写代码之前，您最好了解它们的优缺点 </p>
  *
  * <p> <strong>Thread Safety:</strong> After configuring and starting process, this class can be regarded as thread-safe
- * and used among multiple threads context. </p>
+ * and used among multiple threads context. 在配置和启动进程之后，这个类可以被认为是线程安全的，并在多线程上下文中使用。</p>
  */
 public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Wrapping internal implementations for virtually all methods presented in this class.
+     * 包装这个类中几乎所有方法的内部实现
      */
     protected final transient DefaultMQProducerImpl defaultMQProducerImpl;
     private final InternalLogger log = ClientLogger.getLog();
     /**
      * Producer group conceptually aggregates all producer instances of exactly same role, which is particularly
-     * important when transactional messages are involved. </p>
+     * important when transactional messages are involved.
+     * Producer group在概念上聚合了完全相同角色的所有Producer实例，尤其是当涉及事务性消息时，这一点很重要</p>
      *
-     * For non-transactional messages, it does not matter as long as it's unique per process. </p>
+     * For non-transactional messages, it does not matter as long as it's unique per process.
+     * 对于非事务性消息，只要每个进程都是唯一的，这并不重要</p>
      *
      * See {@linktourl http://rocketmq.apache.org/docs/core-concept/} for more discussion.
      */

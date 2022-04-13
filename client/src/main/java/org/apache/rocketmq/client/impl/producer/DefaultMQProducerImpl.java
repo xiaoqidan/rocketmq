@@ -557,41 +557,61 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         final SendCallback sendCallback,
         final long timeout
     ) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+        //确认producer客户端状态是否ok
         this.makeSureStateOK();
+        // 消息校验，包含消息的topic校验和消息体的校验
+        // topic校验包含以下几点：topic的名字，长度以及是否为不准用的topic
         Validators.checkMessage(msg, this.defaultMQProducer);
+        // 本地调用的id
         final long invokeID = random.nextLong();
+        // 本地调用开始时间
         long beginTimestampFirst = System.currentTimeMillis();
         long beginTimestampPrev = beginTimestampFirst;
         long endTimestamp = beginTimestampFirst;
+         // 尝试去查找Topic的订阅信息
+         // 1.从topicPublishInfoTable缓存中查找
+         // 2.如果缓存为空，从nameServer拉取配置
         TopicPublishInfo topicPublishInfo = this.tryToFindTopicPublishInfo(msg.getTopic());
         if (topicPublishInfo != null && topicPublishInfo.ok()) {
             boolean callTimeout = false;
             MessageQueue mq = null;
             Exception exception = null;
             SendResult sendResult = null;
+            // 若通信模式为同步模式，则失败重试次数=3次（默认2次+1)，若为异步模式，则为一次
             int timesTotal = communicationMode == CommunicationMode.SYNC ? 1 + this.defaultMQProducer.getRetryTimesWhenSendFailed() : 1;
             int times = 0;
+            // 记录每一次重试时候发送消息目标Broker名字的数组
             String[] brokersSent = new String[timesTotal];
+            // 进行重试次数循环发送消息逻辑
             for (; times < timesTotal; times++) {
+                // 获取broker名字，第一次为null，第二次为上次选择的broker名字
                 String lastBrokerName = null == mq ? null : mq.getBrokerName();
+                // 根据topic订阅信息+上次broker名字选择一个消息队列
+                // 有失败重试策略，默认使用RoundRobin算法，可以通过DefaultMQProducer$setSendLatencyFaultEnable 设置启用LatencyFault策略
                 MessageQueue mqSelected = this.selectOneMessageQueue(topicPublishInfo, lastBrokerName);
                 if (mqSelected != null) {
                     mq = mqSelected;
+                    // 将本次选中的消息队列的broker名字添加到数组中
                     brokersSent[times] = mq.getBrokerName();
                     try {
+                        //重新赋值调用开始时间
                         beginTimestampPrev = System.currentTimeMillis();
                         if (times > 0) {
                             //Reset topic with namespace during resend.
                             msg.setTopic(this.defaultMQProducer.withNamespace(msg.getTopic()));
                         }
+                        //发送消息的花费时间
                         long costTime = beginTimestampPrev - beginTimestampFirst;
+                        //如果设置的超时时间小于花费时间，则进行超时标记,并break中断，超时时间默认是3s
                         if (timeout < costTime) {
                             callTimeout = true;
                             break;
                         }
-
+                        // 发送消息到选中的队列中
                         sendResult = this.sendKernelImpl(msg, mq, communicationMode, sendCallback, topicPublishInfo, timeout - costTime);
                         endTimestamp = System.currentTimeMillis();
+                        // 当设置启用 LatencyFault策略时，更新FaultItem
+                        // 根据发送所耗费的时间决定是不是要将broker加入到故障列表中
                         this.updateFaultItem(mq.getBrokerName(), endTimestamp - beginTimestampPrev, false);
                         switch (communicationMode) {
                             case ASYNC:
