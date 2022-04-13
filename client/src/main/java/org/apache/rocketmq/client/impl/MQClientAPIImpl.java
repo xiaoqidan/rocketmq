@@ -431,6 +431,9 @@ public class MQClientAPIImpl {
         return sendMessage(addr, brokerName, msg, requestHeader, timeoutMillis, communicationMode, null, null, null, 0, context, producer);
     }
 
+    /**
+     * 消息发送
+     */
     public SendResult sendMessage(
         final String addr,
         final String brokerName,
@@ -446,8 +449,11 @@ public class MQClientAPIImpl {
         final DefaultMQProducerImpl producer
     ) throws RemotingException, MQBrokerException, InterruptedException {
         long beginStartTime = System.currentTimeMillis();
+        //根据消息的类型和模式选择不同的请求code，然后封装到RemotingCommand
         RemotingCommand request = null;
+        //获取消息的类型
         String msgType = msg.getProperty(MessageConst.PROPERTY_MESSAGE_TYPE);
+        //是否为reply消息
         boolean isReply = msgType != null && msgType.equals(MixAll.REPLY_MESSAGE_FLAG);
         if (isReply) {
             if (sendSmartMsg) {
@@ -458,18 +464,24 @@ public class MQClientAPIImpl {
             }
         } else {
             if (sendSmartMsg || msg instanceof MessageBatch) {
+                // 该类的field 全为a,b,c,d 等，可以加速FastJson序列号
                 SendMessageRequestHeaderV2 requestHeaderV2 = SendMessageRequestHeaderV2.createSendMessageRequestHeaderV2(requestHeader);
+                // 根据request code创建RPC请求对象
+                // 该设计是通过类型码的形式，来标记不同类型的请求
                 request = RemotingCommand.createRequestCommand(msg instanceof MessageBatch ? RequestCode.SEND_BATCH_MESSAGE : RequestCode.SEND_MESSAGE_V2, requestHeaderV2);
             } else {
                 request = RemotingCommand.createRequestCommand(RequestCode.SEND_MESSAGE, requestHeader);
             }
         }
+        //设置消息体
         request.setBody(msg.getBody());
-
+        //消息通信模式，同步设模式/异步模式/oneway
         switch (communicationMode) {
+            //单向，没有返回
             case ONEWAY:
                 this.remotingClient.invokeOneway(addr, request, timeoutMillis);
                 return null;
+            // 异步
             case ASYNC:
                 final AtomicInteger times = new AtomicInteger();
                 long costTimeAsync = System.currentTimeMillis() - beginStartTime;
@@ -479,6 +491,7 @@ public class MQClientAPIImpl {
                 this.sendMessageAsync(addr, brokerName, msg, timeoutMillis - costTimeAsync, request, sendCallback, topicPublishInfo, instance,
                     retryTimesWhenSendFailed, times, context, producer);
                 return null;
+            // 同步
             case SYNC:
                 long costTimeSync = System.currentTimeMillis() - beginStartTime;
                 if (timeoutMillis < costTimeSync) {
@@ -493,6 +506,9 @@ public class MQClientAPIImpl {
         return null;
     }
 
+    /**
+     * 消息同步发送
+     */
     private SendResult sendMessageSync(
         final String addr,
         final String brokerName,
@@ -500,6 +516,7 @@ public class MQClientAPIImpl {
         final long timeoutMillis,
         final RemotingCommand request
     ) throws RemotingException, MQBrokerException, InterruptedException {
+        //同步发送的逻辑，就是通过对netty客户端的调用来发送消息
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, timeoutMillis);
         assert response != null;
         return this.processSendResponse(brokerName, msg, response,addr);

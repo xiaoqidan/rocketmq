@@ -605,10 +605,13 @@ public class MQClientInstance {
     public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault,
         DefaultMQProducer defaultMQProducer) {
         try {
+            //获取锁，锁是用的ReentrantLock的限定时限获取锁，时间为3s
             if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
                     TopicRouteData topicRouteData;
+                    // 如果系统默认的topic，并创建了Producer对象，这个在生产者启动的时候，会进入这个分支
                     if (isDefault && defaultMQProducer != null) {
+                        // 获取系统启动时候创建的topic
                         topicRouteData = this.mQClientAPIImpl.getDefaultTopicRouteInfoFromNameServer(defaultMQProducer.getCreateTopicKey(),
                             1000 * 3);
                         if (topicRouteData != null) {
@@ -619,25 +622,31 @@ public class MQClientInstance {
                             }
                         }
                     } else {
+                        //向broker发送网络请求，请求码105，根据topic获取配置
                         topicRouteData = this.mQClientAPIImpl.getTopicRouteInfoFromNameServer(topic, 1000 * 3);
                     }
+                    //如果topic的路由信息不为空，进行处理
                     if (topicRouteData != null) {
+                        //获取老的配置信息
                         TopicRouteData old = this.topicRouteTable.get(topic);
+                        //新老进行对比，存在变动则更新
                         boolean changed = topicRouteDataIsChange(old, topicRouteData);
+                        //如果没有变动，进一步检查一下本地的配置是否需要更新，比如取消了订阅，或者生产者下线
                         if (!changed) {
                             changed = this.isNeedUpdateTopicRouteInfo(topic);
                         } else {
                             log.info("the topic[{}] route info changed, old[{}] ,new[{}]", topic, old, topicRouteData);
                         }
-
+                        //如果有变动
                         if (changed) {
                             TopicRouteData cloneTopicRouteData = topicRouteData.cloneTopicRouteData();
-
+                            //更新broker信息
                             for (BrokerData bd : topicRouteData.getBrokerDatas()) {
                                 this.brokerAddrTable.put(bd.getBrokerName(), bd.getBrokerAddrs());
                             }
 
                             // Update Pub info
+                            // 更新消息生产者的信息，主要是broker的信息
                             {
                                 TopicPublishInfo publishInfo = topicRouteData2TopicPublishInfo(topic, topicRouteData);
                                 publishInfo.setHaveTopicRouterInfo(true);
@@ -652,6 +661,7 @@ public class MQClientInstance {
                             }
 
                             // Update sub info
+                            // 更新消费者的相关订阅信息
                             {
                                 Set<MessageQueue> subscribeInfo = topicRouteData2TopicSubscribeInfo(topic, topicRouteData);
                                 Iterator<Entry<String, MQConsumerInner>> it = this.consumerTable.entrySet().iterator();
