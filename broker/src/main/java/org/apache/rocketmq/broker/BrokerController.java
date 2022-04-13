@@ -529,7 +529,11 @@ public class BrokerController {
         return result;
     }
 
+    /**
+     * 初始化事务消息相关的服务
+     */
     private void initialTransaction() {
+
         this.transactionalMessageService = ServiceProvider.loadClass(ServiceProvider.TRANSACTION_SERVICE_ID, TransactionalMessageService.class);
         if (null == this.transactionalMessageService) {
             this.transactionalMessageService = new TransactionalMessageServiceImpl(new TransactionalMessageBridge(this, this.getMessageStore()));
@@ -898,30 +902,38 @@ public class BrokerController {
 
     public void start() throws Exception {
         if (this.messageStore != null) {
+            // 启动消息存储服务DefaultMessageStore，其会对/store/lock我呢见加锁
+            // 以确保在broker运行期间只有一个broker实例操作/store目录
             this.messageStore.start();
         }
 
         if (this.remotingServer != null) {
+            // 启动Netty服务监听10911端口，对外提供服务(消息生产,消费)
             this.remotingServer.start();
         }
 
         if (this.fastRemotingServer != null) {
+            // 监听10909端口
             this.fastRemotingServer.start();
         }
 
         if (this.fileWatchService != null) {
+            // 与tls有关
             this.fileWatchService.start();
         }
 
         if (this.brokerOuterAPI != null) {
+            // 启动Netty客户端netty，broker使用其向外发送数据，比如：向nameServer上报心跳，topic信息等
             this.brokerOuterAPI.start();
         }
 
         if (this.pullRequestHoldService != null) {
+            // 长轮询机制hold拉取消息请求的服务
             this.pullRequestHoldService.start();
         }
 
         if (this.clientHousekeepingService != null) {
+            //每10s检查一遍非活动的连接服务
             this.clientHousekeepingService.start();
         }
 
@@ -930,8 +942,12 @@ public class BrokerController {
         }
 
         if (!messageStoreConfig.isEnableDLegerCommitLog()) {
+            //处理HA
             startProcessorByHa(messageStoreConfig.getBrokerRole());
+            //启动定时任务，定时与slave机器同步数据，同步的内容包括配置，消费位移等
             handleSlaveSynchronize(messageStoreConfig.getBrokerRole());
+            // 向所有的nameserver发送本机所有的主题数据
+            // 包括主题名，读队列个数，写队列个数，队列权限，是否有序等
             this.registerBrokerAll(true, false, true);
         }
         // Broker发送心跳包
@@ -940,6 +956,7 @@ public class BrokerController {
             @Override
             public void run() {
                 try {
+                    // 定时向nameServer注册broker，最小每10s
                     BrokerController.this.registerBrokerAll(true, false, brokerConfig.isForceRegister());
                 } catch (Throwable e) {
                     log.error("registerBrokerAll Exception", e);
@@ -948,10 +965,12 @@ public class BrokerController {
         }, 1000 * 10, Math.max(10000, Math.min(brokerConfig.getRegisterNameServerPeriod(), 60000)), TimeUnit.MILLISECONDS);
 
         if (this.brokerStatsManager != null) {
+            //broker信息统计
             this.brokerStatsManager.start();
         }
 
         if (this.brokerFastFailure != null) {
+            //broker对请求队列中的请求进行快速失败，返回broker繁忙，请稍后再试等
             this.brokerFastFailure.start();
         }
 
