@@ -25,6 +25,10 @@ import org.apache.rocketmq.remoting.annotation.CFNotNull;
 import org.apache.rocketmq.remoting.annotation.CFNullable;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 
+/**
+ * 消息请求头
+ * broker内部使用的，非传输使用
+ */
 public class SendMessageRequestHeader implements CommandCustomHeader {
     @CFNotNull
     private String producerGroup;

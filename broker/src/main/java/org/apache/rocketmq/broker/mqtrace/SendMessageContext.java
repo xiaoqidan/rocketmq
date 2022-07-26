@@ -20,6 +20,9 @@ import java.util.Properties;
 import org.apache.rocketmq.common.message.MessageType;
 import org.apache.rocketmq.store.stats.BrokerStatsManager;
 
+/**
+ * 消息体内容
+ */
 public class SendMessageContext {
     private String producerGroup;
     private String topic;

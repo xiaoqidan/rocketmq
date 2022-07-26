@@ -31,6 +31,13 @@ import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 
+/**
+ * 消息传输过程中的对数据内容的封装类
+ * 1、消息长度：消息的总长度，int类型，四个字节存储；
+ * 2、序列化类型&&头部长度：int类型，第一个字节表示序列化类型，后面三个字节表示消息头长度；
+ * 3、消息头数据：经过序列化后的消息头数据；
+ * 4、消息主体数据：消息主体的二进制字节数据内容
+ */
 public class RemotingCommand {
     public static final String SERIALIZE_TYPE_PROPERTY = "rocketmq.serialize.type";
     public static final String SERIALIZE_TYPE_ENV = "ROCKETMQ_SERIALIZE_TYPE";
@@ -38,12 +45,13 @@ public class RemotingCommand {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(RemotingHelper.ROCKETMQ_REMOTING);
     private static final int RPC_TYPE = 0; // 0, REQUEST_COMMAND
     private static final int RPC_ONEWAY = 1; // 0, RPC
-    private static final Map<Class<? extends CommandCustomHeader>, Field[]> CLASS_HASH_MAP =
-        new HashMap<Class<? extends CommandCustomHeader>, Field[]>();
+    // [缓存] 消息头的实例 <--> 该实例的字段
+    private static final Map<Class<? extends CommandCustomHeader>, Field[]> CLASS_HASH_MAP = new HashMap<Class<? extends CommandCustomHeader>, Field[]>();
     private static final Map<Class, String> CANONICAL_NAME_CACHE = new HashMap<Class, String>();
     // 1, Oneway
     // 1, RESPONSE_COMMAND
     private static final Map<Field, Boolean> NULLABLE_FIELD_CACHE = new HashMap<Field, Boolean>();
+    // 常用字段类型的名称常量
     private static final String STRING_CANONICAL_NAME = String.class.getCanonicalName();
     private static final String DOUBLE_CANONICAL_NAME_1 = Double.class.getCanonicalName();
     private static final String DOUBLE_CANONICAL_NAME_2 = double.class.getCanonicalName();
@@ -80,6 +88,7 @@ public class RemotingCommand {
 
     private SerializeType serializeTypeCurrentRPC = serializeTypeConfigInThisServer;
 
+    // 消息主体的二进制数据内容
     private transient byte[] body;
 
     protected RemotingCommand() {
@@ -233,6 +242,7 @@ public class RemotingCommand {
 
     public CommandCustomHeader decodeCommandCustomHeader(
         Class<? extends CommandCustomHeader> classHeader) throws RemotingCommandException {
+        // 反射创建一下实例，因为这里是接口的实现类，不确定具体的类型，所以直接使用反射
         CommandCustomHeader objectHeader;
         try {
             objectHeader = classHeader.newInstance();
@@ -243,9 +253,11 @@ public class RemotingCommand {
         }
 
         if (this.extFields != null) {
-
+            // 获取传入类的字段
             Field[] fields = getClazzFields(classHeader);
+            // 遍历每个字段
             for (Field field : fields) {
+                // 判断字段的性质
                 if (!Modifier.isStatic(field.getModifiers())) {
                     String fieldName = field.getName();
                     if (!fieldName.startsWith("this")) {
@@ -261,7 +273,7 @@ public class RemotingCommand {
                             field.setAccessible(true);
                             String type = getCanonicalName(field.getType());
                             Object valueParsed;
-
+                            // 类型判断
                             if (type.equals(STRING_CANONICAL_NAME)) {
                                 valueParsed = value;
                             } else if (type.equals(INTEGER_CANONICAL_NAME_1) || type.equals(INTEGER_CANONICAL_NAME_2)) {
@@ -284,13 +296,16 @@ public class RemotingCommand {
                     }
                 }
             }
-
+            // 这个是消息头接口的唯一方法
             objectHeader.checkFields();
         }
 
         return objectHeader;
     }
 
+    /**
+     * 获取传入类的字段，有缓存直接从缓存中拿
+     */
     private Field[] getClazzFields(Class<? extends CommandCustomHeader> classHeader) {
         Field[] field = CLASS_HASH_MAP.get(classHeader);
 
