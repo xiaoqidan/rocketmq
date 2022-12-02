@@ -41,6 +41,12 @@ import org.apache.rocketmq.store.CommitLog;
 import org.apache.rocketmq.store.DefaultMessageStore;
 import org.apache.rocketmq.store.PutMessageStatus;
 
+/**
+ * HA: High Availability 高可用
+ * 管理主从同步，一个slave 对应一个 HAConnection
+ * 参考：https://www.jianshu.com/p/b02ea33ead59
+ *      https://www.ngui.cc/el/1638929.html?action=onClick
+ */
 public class HAService {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 

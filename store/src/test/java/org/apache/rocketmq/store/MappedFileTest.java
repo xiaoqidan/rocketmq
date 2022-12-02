@@ -32,19 +32,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class MappedFileTest {
     private final String storeMessage = "Once, there was a chance for me!";
 
+    private final String path = "target/unit_test_store/MappedFileTest/000";
+
     @Test
     public void testSelectMappedBuffer() throws IOException {
-        MappedFile mappedFile = new MappedFile("target/unit_test_store/MappedFileTest/000", 1024 * 64);
+        File file = new File(path);
+        System.out.println(file.getAbsolutePath());
+        // 写入文件
+        MappedFile mappedFile = new MappedFile(path, 1024 * 64);
         boolean result = mappedFile.appendMessage(storeMessage.getBytes());
         assertThat(result).isTrue();
 
+        // 读取内容
         SelectMappedBufferResult selectMappedBufferResult = mappedFile.selectMappedBuffer(0);
         byte[] data = new byte[storeMessage.length()];
         selectMappedBufferResult.getByteBuffer().get(data);
         String readString = new String(data);
 
+        System.out.println("读取到的结果： " + readString);
         assertThat(readString).isEqualTo(storeMessage);
 
+        // 释放资源 并 删除测试文件
         mappedFile.shutdown(1000);
         assertThat(mappedFile.isAvailable()).isFalse();
         selectMappedBufferResult.release();

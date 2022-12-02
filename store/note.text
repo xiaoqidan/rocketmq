@@ -1,0 +1,8 @@
+文件存储系统设计
+参考：https://www.jianshu.com/p/b73fdd893f98
+
+本地文件分为：
+    1.CommitLog 消息存储文件
+    2.消费组进度文件
+    3.索引文件
+
