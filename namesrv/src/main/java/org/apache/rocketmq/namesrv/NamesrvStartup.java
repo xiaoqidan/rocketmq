@@ -51,6 +51,9 @@ public class NamesrvStartup {
         main0(args);
     }
 
+    /**
+     * namesrc 启动入口
+     */
     public static NamesrvController main0(String[] args) {
 
         try {
@@ -68,6 +71,13 @@ public class NamesrvStartup {
         return null;
     }
 
+    /**
+     * 传入了启动给的参数
+     * @param args
+     * @return
+     * @throws IOException
+     * @throws JoranException
+     */
     public static NamesrvController createNamesrvController(String[] args) throws IOException, JoranException {
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
         //PackageConflictDetect.detectFastjson();
